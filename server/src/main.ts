@@ -130,21 +130,39 @@ async function bootstrapLocal() {
 
 // --- Vercel Serverless Function ---
 const server = express();
-let nestApp: INestApplication;
+let nestApp: INestApplication | null = null;
+let isInitialized = false;
 
 async function createNestAppForVercel() {
-  if (!nestApp) {
-    nestApp = await NestFactory.create(AppModule, new ExpressAdapter(server));
-    // Apply all configurations using the single, shared function
-    configureApp(nestApp);
-    await nestApp.init();
+  if (!isInitialized) {
+    try {
+      nestApp = await NestFactory.create(AppModule, new ExpressAdapter(server));
+      // Apply all configurations using the single, shared function
+      configureApp(nestApp);
+      await nestApp.init();
+      isInitialized = true;
+    } catch (error) {
+      console.error('Failed to create NestJS app:', error);
+      throw error;
+    }
   }
   return nestApp;
 }
 
 export default async (req: express.Request, res: express.Response) => {
-  await createNestAppForVercel();
-  server(req, res);
+  try {
+    await createNestAppForVercel();
+    // Handle the request through the Express server
+    server(req, res);
+  } catch (error) {
+    console.error('Serverless function error:', error);
+    if (!res.headersSent) {
+      res.status(500).json({
+        error: 'Internal Server Error',
+        message: error instanceof Error ? error.message : 'Unknown error',
+      });
+    }
+  }
 };
 
 // --- Entry Point ---
