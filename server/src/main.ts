@@ -22,7 +22,10 @@ dotenv.config();
  */
 function configureApp(app: INestApplication) {
   // CORS Configuration
-  const allowedOrigins = ['http://localhost:3000'].filter(Boolean);
+  const allowedOrigins = [
+    'http://localhost:3000',
+    process.env.FRONTEND_URL,
+  ].filter(Boolean);
 
   if (allowedOrigins.length > 0) {
     app.enableCors({
