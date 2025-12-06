@@ -1,29 +1,61 @@
-import { ClassSerializerInterceptor, ValidationPipe } from '@nestjs/common';
-import { ConfigService } from '@nestjs/config';
+import {
+  ClassSerializerInterceptor,
+  INestApplication,
+  ValidationPipe,
+} from '@nestjs/common';
 import { NestFactory, Reflector } from '@nestjs/core';
+import { ExpressAdapter } from '@nestjs/platform-express';
 import { DocumentBuilder, SwaggerModule } from '@nestjs/swagger';
 import { apiReference } from '@scalar/nestjs-api-reference';
-import { json } from 'express';
+import * as dotenv from 'dotenv';
+import express, { json } from 'express';
 import { AppModule } from './app.module';
 
-async function bootstrap() {
-  const app = await NestFactory.create(AppModule);
-  const configService = app.get(ConfigService);
-  const port = configService.get<number>('PORT') || 4000; // Default to 4000 to match your .env
+// Load environment variables from .env file
+dotenv.config();
 
+/**
+ * A shared function to configure the NestJS application instance.
+ * This ensures that both local development and serverless environments
+ * have the exact same setup, preventing inconsistencies.
+ * @param app The INestApplication instance.
+ */
+function configureApp(app: INestApplication) {
   // CORS Configuration
-  app.enableCors({
-    origin: '*', // Allow all for MVP development
-    methods: ['GET', 'POST', 'PUT', 'DELETE', 'PATCH', 'OPTIONS'],
-    allowedHeaders: [
-      'Origin',
-      'X-Requested-With',
-      'Content-Type',
-      'Accept',
-      'Authorization',
-    ],
-    credentials: true,
-  });
+  const allowedOrigins = ['http://localhost:3000'].filter(Boolean);
+
+  if (allowedOrigins.length > 0) {
+    app.enableCors({
+      origin: allowedOrigins,
+      methods: ['GET', 'POST', 'PUT', 'DELETE', 'PATCH', 'OPTIONS'],
+      allowedHeaders: [
+        'Origin',
+        'X-Requested-With',
+        'Content-Type',
+        'Accept',
+        'Authorization',
+      ],
+      credentials: true,
+    });
+  } else {
+    // Fallback for development if .env is not set up, allowing any origin.
+    console.warn(
+      'CORS origins not defined in .env, allowing all origins.',
+      'Bootstrap',
+    );
+    app.enableCors({
+      origin: '*', // Allow all for MVP development
+      methods: ['GET', 'POST', 'PUT', 'DELETE', 'PATCH', 'OPTIONS'],
+      allowedHeaders: [
+        'Origin',
+        'X-Requested-With',
+        'Content-Type',
+        'Accept',
+        'Authorization',
+      ],
+      credentials: true,
+    });
+  }
 
   // Global Validation Pipe
   app.useGlobalPipes(
@@ -78,10 +110,43 @@ async function bootstrap() {
 
   // Set Global Prefix
   app.setGlobalPrefix('api');
+}
 
+// --- Local Development Bootstrap ---
+async function bootstrapLocal() {
+  const app = await NestFactory.create(AppModule);
+
+  // Apply all configurations using the single, shared function
+  configureApp(app);
+
+  const port = process.env.PORT || 8000;
   await app.listen(port);
   console.log(`🚀 Server running on http://localhost:${port}/api`);
   console.log(`📚 Scalar Docs running on http://localhost:${port}/reference`);
 }
 
-bootstrap();
+// --- Vercel Serverless Function ---
+const server = express();
+let nestApp: INestApplication;
+
+async function createNestAppForVercel() {
+  if (!nestApp) {
+    nestApp = await NestFactory.create(AppModule, new ExpressAdapter(server));
+    // Apply all configurations using the single, shared function
+    configureApp(nestApp);
+    await nestApp.init();
+  }
+  return nestApp;
+}
+
+export default async (req: express.Request, res: express.Response) => {
+  await createNestAppForVercel();
+  server(req, res);
+};
+
+// --- Entry Point ---
+// This ensures that the local server only runs when you execute `node main.js`
+// and not when it's imported by another file (like Vercel's runtime).
+if (require.main === module) {
+  void bootstrapLocal();
+}
