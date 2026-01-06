@@ -13,6 +13,9 @@ export function useMeetings() {
     queryKey: MEETINGS_QUERY_KEY,
     queryFn: () => meetingsService.getAllMeetings(),
     staleTime: 1000 * 60 * 5, // 5 minutes
+    retry: 1, // Only retry once on failure
+    // Ensure we always have an array as default
+    select: (data) => (Array.isArray(data) ? data : []),
   });
 }
 

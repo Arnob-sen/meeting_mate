@@ -25,6 +25,8 @@ function configureApp(app: INestApplication) {
   const allowedOrigins = [
     'http://localhost:3000',
     process.env.FRONTEND_URL,
+    // Add ngrok frontend URL for testing
+    'https://ef87d9c947a4.ngrok-free.app',
   ].filter(Boolean);
 
   if (allowedOrigins.length > 0) {
@@ -37,6 +39,7 @@ function configureApp(app: INestApplication) {
         'Content-Type',
         'Accept',
         'Authorization',
+        'ngrok-skip-browser-warning', // Allow ngrok bypass header
       ],
       credentials: true,
     });
@@ -55,6 +58,7 @@ function configureApp(app: INestApplication) {
         'Content-Type',
         'Accept',
         'Authorization',
+        'ngrok-skip-browser-warning', // Allow ngrok bypass header
       ],
       credentials: true,
     });

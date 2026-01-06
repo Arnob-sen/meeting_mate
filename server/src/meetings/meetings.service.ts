@@ -34,7 +34,11 @@ export class MeetingsService {
 
       // ✅ FIX: Convert Mongoose Document to Plain Object
       // This stops ClassSerializerInterceptor from crashing on Mongoose internals
-      return saved.toObject();
+      // Using JSON.parse(JSON.stringify()) ensures proper serialization of ObjectIds
+      return JSON.parse(JSON.stringify(saved.toObject())) as Omit<
+        Meeting,
+        '_id'
+      > & { _id: string };
     } catch (error) {
       if (file && file.path) await fs.unlink(file.path).catch(() => {});
       throw error;
@@ -46,7 +50,11 @@ export class MeetingsService {
     const meetings = await this.meetingModel
       .find()
       .sort({ createdAt: -1 })
+      .lean() // Use lean() for better performance and proper JSON serialization
       .exec();
-    return meetings.map((meeting) => meeting.toObject());
+    // Use JSON serialization to ensure ObjectIds are converted to strings
+    return JSON.parse(JSON.stringify(meetings)) as Array<
+      Omit<Meeting, '_id'> & { _id: string }
+    >;
   }
 }
