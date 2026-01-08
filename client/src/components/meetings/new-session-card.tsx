@@ -1,35 +1,43 @@
-'use client';
+"use client";
 
-import { useState } from 'react';
-import { useAudioRecorder } from '@/hooks/use-audio-recorder';
-import { useCreateMeeting } from '@/hooks/use-meetings';
-import { Button } from '@/components/ui/button';
-import { Input } from '@/components/ui/input';
-import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
-import { Mic, Square, Save, Loader2 } from 'lucide-react';
-import { toast } from 'sonner';
+import { useState } from "react";
+import { useAudioRecorder } from "@/hooks/use-audio-recorder";
+import { useCreateMeeting } from "@/hooks/use-meetings";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import {
+  Card,
+  CardContent,
+  CardHeader,
+  CardTitle,
+  CardDescription,
+} from "@/components/ui/card";
+import { Mic, Square, Save, Loader2, Monitor } from "lucide-react";
+import { toast } from "sonner";
 
 export function NewSessionCard() {
   const {
     isRecording,
     startRecording,
+    startSystemRecording,
     stopRecording,
     audioBlob,
     recordingTime,
     formatTime,
     resetRecording,
+    isSystemAudio,
   } = useAudioRecorder();
-  const [clientName, setClientName] = useState('');
+  const [clientName, setClientName] = useState("");
   const createMeetingMutation = useCreateMeeting();
 
   const handleProcess = () => {
     if (!audioBlob) {
-      toast.error('Please record audio first');
+      toast.error("Please record audio first");
       return;
     }
 
     if (!clientName.trim()) {
-      toast.error('Please enter a client name');
+      toast.error("Please enter a client name");
       return;
     }
 
@@ -40,10 +48,10 @@ export function NewSessionCard() {
       },
       {
         onSuccess: () => {
-          setClientName('');
+          setClientName("");
           resetRecording();
         },
-      },
+      }
     );
   };
 
@@ -51,7 +59,13 @@ export function NewSessionCard() {
     <Card className="border-2 border-slate-200 shadow-sm">
       <CardHeader>
         <CardTitle>New Session</CardTitle>
-        <CardDescription>Record your client meeting</CardDescription>
+        <CardDescription>
+          {isRecording
+            ? isSystemAudio
+              ? "Recording System Audio..."
+              : "Recording Microphone..."
+            : "Record your client meeting"}
+        </CardDescription>
       </CardHeader>
       <CardContent className="space-y-4">
         <Input
@@ -72,7 +86,7 @@ export function NewSessionCard() {
                 variant="destructive"
                 className="w-32 rounded-full"
               >
-                <Mic className="mr-2 h-4 w-4" /> Record
+                <Mic className="mr-2 h-4 w-4" /> Record Mic
               </Button>
             ) : (
               <Button
@@ -81,6 +95,16 @@ export function NewSessionCard() {
                 className="w-32 rounded-full border-red-500 text-red-500 hover:bg-red-50"
               >
                 <Square className="mr-2 h-4 w-4" /> Stop
+              </Button>
+            )}
+
+            {!isRecording && (
+              <Button
+                onClick={startSystemRecording}
+                variant="secondary"
+                className="w-40 rounded-full"
+              >
+                <Monitor className="mr-2 h-4 w-4" /> Online Meeting
               </Button>
             )}
           </div>
@@ -98,12 +122,11 @@ export function NewSessionCard() {
               <Save className="mr-2 h-4 w-4" />
             )}
             {createMeetingMutation.isPending
-              ? 'Transcribing (AI)...'
-              : 'Process & Save'}
+              ? "Transcribing (AI)..."
+              : "Process & Save"}
           </Button>
         )}
       </CardContent>
     </Card>
   );
 }
-

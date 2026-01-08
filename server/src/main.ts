@@ -24,6 +24,7 @@ function configureApp(app: INestApplication) {
   // CORS Configuration
   const allowedOrigins = [
     'http://localhost:3000',
+    'http://127.0.0.1:3000',
     process.env.FRONTEND_URL,
     // Add ngrok frontend URL for testing
     'https://ef87d9c947a4.ngrok-free.app',

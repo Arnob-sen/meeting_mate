@@ -5,6 +5,7 @@ import {
   Body,
   UploadedFile,
   UseInterceptors,
+  Query,
 } from '@nestjs/common';
 import { FileInterceptor } from '@nestjs/platform-express';
 import { MeetingsService } from './meetings.service';
@@ -48,5 +49,21 @@ export class MeetingsController {
   @ApiOperation({ summary: 'Get all past meeting summaries' })
   async getMeetings() {
     return this.meetingsService.findAll();
+  }
+
+  @Get('search')
+  @ApiOperation({ summary: 'Semantic search across meetings' })
+  async search(@Query('q') q: string) {
+    if (!q) return [];
+    return this.meetingsService.search(q);
+  }
+  @Post('chat')
+  @ApiOperation({ summary: 'Chat with your meeting data (RAG)' })
+  @ApiBody({
+    schema: { type: 'object', properties: { query: { type: 'string' } } },
+  })
+  async chat(@Body('query') query: string) {
+    if (!query) return { answer: 'Please provide a question.', sources: [] };
+    return this.meetingsService.chat(query);
   }
 }

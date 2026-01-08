@@ -22,6 +22,9 @@ export class Meeting {
   @Prop({ type: Summary })
   summary: Summary;
 
+  @Prop([Number])
+  embedding: number[];
+
   // Note: We don't save the audio file path permanently in MVP to save disk space,
   // but you could add @Prop() audioUrl: string; here.
 }
