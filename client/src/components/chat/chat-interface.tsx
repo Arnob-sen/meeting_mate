@@ -10,8 +10,8 @@ import {
   CardHeader,
   CardTitle,
   CardDescription,
-} from "@/components/ui/card"; // Assuming these exist or use div
-import { Send, Bot, User, Loader2, MessageSquare } from "lucide-react";
+} from "@/components/ui/card";
+import { Send, Bot, User, Loader2, Sparkles } from "lucide-react";
 import { cn } from "@/lib/utils";
 import formatRagResponse from "@/lib/ragResponse";
 
@@ -82,84 +82,100 @@ export function ChatInterface() {
   };
 
   return (
-    <Card className="w-full max-w-2xl mx-auto h-[600px] flex flex-col shadow-lg border-t-4 border-t-purple-500">
-      <CardHeader className="border-b bg-gray-50/50">
-        <div className="flex items-center gap-2">
-          <MessageSquare className="h-5 w-5 text-purple-600" />
-          <CardTitle>Chat with Meetings</CardTitle>
+    <Card className="w-full flex flex-col shadow-2xl border-none h-[700px] rounded-3xl overflow-hidden bg-card/50 backdrop-blur-sm">
+      <CardHeader className="border-b bg-primary/5 pb-6">
+        <div className="flex items-center gap-3">
+          <div className="w-10 h-10 rounded-xl bg-primary flex items-center justify-center shadow-lg shadow-primary/20">
+            <Sparkles className="h-5 w-5 text-primary-foreground" />
+          </div>
+          <div>
+            <CardTitle className="text-lg">Meeting Brain</CardTitle>
+            <CardDescription className="text-xs">
+              AI-powered meeting assistant
+            </CardDescription>
+          </div>
         </div>
-        <CardDescription>
-          Ask questions like &quot;What did we decide about pricing?&quot;
-        </CardDescription>
       </CardHeader>
-      <CardContent className="flex-1 overflow-y-auto p-4 space-y-4">
+
+      <CardContent className="flex-1 overflow-y-auto p-6 space-y-6 scrollbar-thin scrollbar-thumb-primary/10 hover:scrollbar-thumb-primary/20">
         {messages.map((message) => (
           <div
             key={message.id}
             className={cn(
-              "flex w-full items-start gap-2",
+              "flex w-full items-start gap-3 animate-in fade-in slide-in-from-bottom-2 duration-300",
               message.role === "user" ? "justify-end" : "justify-start"
             )}
           >
             {message.role === "assistant" && (
-              <div className="flex h-8 w-8 shrink-0 select-none items-center justify-center rounded-full bg-purple-100 text-purple-600">
+              <div className="flex h-8 w-8 shrink-0 select-none items-center justify-center rounded-lg bg-primary text-primary-foreground shadow-sm">
                 <Bot className="h-4 w-4" />
               </div>
             )}
 
             <div
               className={cn(
-                "max-w-[80%] rounded-lg px-4 py-2 text-sm",
+                "max-w-[85%] rounded-2xl px-4 py-3 text-sm leading-relaxed shadow-sm",
                 message.role === "user"
-                  ? "bg-purple-600 text-white"
-                  : "bg-gray-100 text-gray-900"
+                  ? "bg-primary text-primary-foreground rounded-tr-none"
+                  : "bg-card border text-foreground rounded-tl-none"
               )}
             >
-              <p className="whitespace-pre-wrap">{message.content}</p>
+              <div className="whitespace-pre-wrap">{message.content}</div>
               {message.sources && message.sources.length > 0 && (
-                <div className="mt-2 text-xs opacity-70 border-t border-gray-300/20 pt-1">
-                  Sources: {message.sources.length} meeting(s)
+                <div
+                  className={cn(
+                    "mt-3 text-[10px] font-semibold uppercase tracking-widest pt-2 border-t",
+                    message.role === "user"
+                      ? "border-primary-foreground/20 text-primary-foreground/70"
+                      : "border-border text-muted-foreground"
+                  )}
+                >
+                  Context: {message.sources.length} meetings analyzed
                 </div>
               )}
             </div>
 
             {message.role === "user" && (
-              <div className="flex h-8 w-8 shrink-0 select-none items-center justify-center rounded-full bg-gray-200 text-gray-600">
+              <div className="flex h-8 w-8 shrink-0 select-none items-center justify-center rounded-lg bg-secondary text-secondary-foreground border">
                 <User className="h-4 w-4" />
               </div>
             )}
           </div>
         ))}
         {isLoading && (
-          <div className="flex items-start gap-2">
-            <div className="flex h-8 w-8 shrink-0 select-none items-center justify-center rounded-full bg-purple-100 text-purple-600">
+          <div className="flex items-start gap-3">
+            <div className="flex h-8 w-8 shrink-0 select-none items-center justify-center rounded-lg bg-primary text-primary-foreground shadow-sm">
               <Bot className="h-4 w-4" />
             </div>
-            <div className="bg-gray-100 rounded-lg px-4 py-2">
-              <Loader2 className="h-4 w-4 animate-spin text-gray-500" />
+            <div className="bg-card border rounded-2xl rounded-tl-none px-5 py-3 shadow-sm">
+              <Loader2 className="h-5 w-5 animate-spin text-primary" />
             </div>
           </div>
         )}
         <div ref={messagesEndRef} />
       </CardContent>
-      <div className="p-4 border-t bg-white">
-        <form onSubmit={handleSubmit} className="flex gap-2">
+
+      <div className="p-6 pt-2 bg-linear-to-t from-card to-transparent border-t">
+        <form onSubmit={handleSubmit} className="relative group">
           <Input
-            placeholder="Ask a question about your meetings..."
+            placeholder="Ask anything about past meetings..."
             value={input}
             onChange={(e) => setInput(e.target.value)}
             disabled={isLoading}
-            className="flex-1"
+            className="w-full h-14 pl-6 pr-16 rounded-2xl bg-secondary/80 border-none shadow-inner focus-visible:ring-primary/30 transition-all text-sm font-medium"
           />
           <Button
             type="submit"
             disabled={!input.trim() || isLoading}
-            className="bg-purple-600 hover:bg-purple-700 text-white"
+            size="icon"
+            className="absolute right-2 top-1/2 -translate-y-1/2 h-10 w-10 rounded-xl shadow-lg shadow-primary/30 group-hover:scale-105 active:scale-95 transition-all"
           >
             <Send className="h-4 w-4" />
-            <span className="sr-only">Send</span>
           </Button>
         </form>
+        <p className="text-[10px] text-center text-muted-foreground mt-3">
+          AI may provide inaccurate info. Verification recommended.
+        </p>
       </div>
     </Card>
   );

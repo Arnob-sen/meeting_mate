@@ -4,13 +4,19 @@ import { useState } from "react";
 import { meetingsService } from "@/services/meetings.service";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
-import { Search, Loader2, X } from "lucide-react";
+import { Search, Loader2, X, Sparkles } from "lucide-react";
 import { MeetingCard } from "./meeting-card";
 import { useQuery } from "@tanstack/react-query";
 
-export function SearchMeetings() {
+import { Meeting } from "@/types/meeting";
+
+interface SearchMeetingsProps {
+  onSelect?: (meeting: Meeting) => void;
+  selectedId?: string;
+}
+
+export function SearchMeetings({ onSelect, selectedId }: SearchMeetingsProps) {
   const [query, setQuery] = useState("");
-  // Use debouncing to avoid API calls on every keystroke
   const [debouncedQuery, setDebouncedQuery] = useState("");
 
   const handleSearch = () => {
@@ -30,77 +36,84 @@ export function SearchMeetings() {
   });
 
   return (
-    <div className="w-full max-w-2xl mx-auto mb-8">
-      <div className="relative flex gap-2">
-        <div className="relative flex-1">
-          <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 h-4 w-4" />
-          <Input
-            placeholder="Search meetings (e.g. 'budget discussion', 'project deadline')..."
-            value={query}
-            onChange={(e) => setQuery(e.target.value)}
-            onKeyDown={handleKeyDown}
-            className="pl-10 pr-10"
-          />
+    <div className="w-full">
+      <div className="relative group">
+        <Search className="absolute left-4 top-1/2 -translate-y-1/2 text-muted-foreground h-4 w-4 group-focus-within:text-primary transition-colors" />
+        <Input
+          placeholder="Ask AI to find meetings..."
+          value={query}
+          onChange={(e) => setQuery(e.target.value)}
+          onKeyDown={handleKeyDown}
+          className="pl-11 pr-12 h-12 rounded-xl bg-secondary/50 border-none focus-visible:ring-primary/20 transition-all font-medium"
+        />
+        <div className="absolute right-2 top-1/2 -translate-y-1/2 flex items-center gap-1">
           {query && (
-            <button
+            <Button
+              variant="ghost"
+              size="icon"
+              className="h-8 w-8 text-muted-foreground hover:text-foreground"
               onClick={() => {
                 setQuery("");
                 setDebouncedQuery("");
               }}
-              className="absolute right-3 top-1/2 transform -translate-y-1/2 text-gray-400 hover:text-gray-600"
             >
               <X className="h-4 w-4" />
-            </button>
+            </Button>
           )}
+          <Button
+            size="sm"
+            onClick={handleSearch}
+            disabled={!query.trim() || isLoading}
+            className="h-8 rounded-lg"
+          >
+            {isLoading ? <Loader2 className="h-3 w-3 animate-spin" /> : "Go"}
+          </Button>
         </div>
-        <Button onClick={handleSearch} disabled={!query.trim() || isLoading}>
-          {isLoading ? <Loader2 className="h-4 w-4 animate-spin" /> : "Search"}
-        </Button>
       </div>
 
       {debouncedQuery && (
-        <div className="mt-6 space-y-4">
-          <div className="flex items-center justify-between">
-            <h3 className="text-sm font-medium text-gray-500">
-              Search Results for &quot;{debouncedQuery}&quot;
+        <div className="mt-6 space-y-4 animate-in fade-in slide-in-from-top-2 duration-300">
+          <div className="flex items-center justify-between px-1">
+            <h3 className="text-xs font-semibold text-muted-foreground uppercase tracking-wider flex items-center gap-2">
+              <Sparkles className="w-3 h-3 text-primary" />
+              AI Found {results?.length || 0} Matches
             </h3>
-            <Button
-              variant="ghost"
-              size="sm"
-              onClick={() => {
-                setQuery("");
-                setDebouncedQuery("");
-              }}
-            >
-              Clear
-            </Button>
           </div>
 
           {isLoading && (
-            <div className="flex justify-center p-8">
-              <Loader2 className="h-8 w-8 animate-spin text-blue-500" />
+            <div className="flex flex-col items-center justify-center p-12 bg-secondary/20 rounded-2xl border border-dashed text-muted-foreground">
+              <Loader2 className="h-8 w-8 animate-spin text-primary mb-4" />
+              <p className="text-sm">Searching your meeting brain...</p>
             </div>
           )}
 
           {!isLoading && results && results.length === 0 && (
-            <div className="text-center p-8 bg-gray-50 rounded-lg border border-dashed">
-              <p className="text-gray-500">No matching meetings found.</p>
+            <div className="text-center p-12 bg-secondary/20 rounded-2xl border border-dashed">
+              <Search className="w-8 h-8 text-muted-foreground/30 mx-auto mb-3" />
+              <p className="text-muted-foreground text-sm font-medium">
+                No meetings match that context.
+              </p>
             </div>
           )}
 
           {!isLoading && results && results.length > 0 && (
-            <div className="space-y-4">
+            <div className="space-y-3">
               {results.map((meeting) => (
-                // @ts-ignore - similarity is added by search
                 <div key={meeting._id} className="relative group">
-                  {/* @ts-ignore */}
+                  {/* @ts-expect-error - similarity is added to the meeting object in search results */}
                   {meeting.similarity && (
-                    <div className="absolute -top-2 right-4 bg-blue-100 text-blue-700 text-xs px-2 py-0.5 rounded-full z-10 font-mono">
-                      {/* @ts-ignore */}
-                      Match: {Math.round(meeting.similarity * 100)}%
+                    <div className="absolute -top-1.5 -right-1 z-10">
+                      <div className="px-2 py-0.5 rounded-md bg-primary text-[10px] font-bold text-primary-foreground shadow-sm uppercase tracking-tighter">
+                        {/* @ts-expect-error - similarity is added to the meeting object in search results */}
+                        {Math.round(meeting.similarity * 100)}% Match
+                      </div>
                     </div>
                   )}
-                  <MeetingCard meeting={meeting} />
+                  <MeetingCard
+                    meeting={meeting}
+                    onClick={() => onSelect?.(meeting)}
+                    isActive={selectedId === meeting._id}
+                  />
                 </div>
               ))}
             </div>
