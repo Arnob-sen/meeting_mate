@@ -1,13 +1,18 @@
 import { Injectable } from '@nestjs/common';
 import { InjectModel } from '@nestjs/mongoose';
-import { Model } from 'mongoose';
+import { Model, Types } from 'mongoose';
+import * as fs from 'fs/promises';
+
 import { Meeting, MeetingDocument } from './schemas/meeting.schema';
 import {
   MeetingChunk,
   MeetingChunkDocument,
 } from './schemas/meeting-chunk.schema';
+import {
+  ChatMessage,
+  ChatMessageDocument,
+} from './schemas/chat-message.schema';
 import { AiService } from '../ai/ai.service';
-import * as fs from 'fs/promises';
 
 @Injectable()
 export class MeetingsService {
@@ -15,18 +20,18 @@ export class MeetingsService {
     @InjectModel(Meeting.name) private meetingModel: Model<MeetingDocument>,
     @InjectModel(MeetingChunk.name)
     private meetingChunkModel: Model<MeetingChunkDocument>,
+    @InjectModel(ChatMessage.name)
+    private chatMessageModel: Model<ChatMessageDocument>,
     private aiService: AiService,
   ) {}
 
   async create(file: Express.Multer.File, clientName: string) {
     try {
-      // 1. Send to AI
       const aiResult = await this.aiService.processAudioFile(
         file.path,
         file.mimetype,
       );
 
-      // 2. Save to DB
       const newMeeting = new this.meetingModel({
         clientName,
         transcription: aiResult.transcription,
@@ -36,155 +41,184 @@ export class MeetingsService {
 
       const saved = await newMeeting.save();
 
-      // 2b. Save Chunks
-      if (aiResult.chunks && aiResult.chunks.length > 0) {
-        const chunkDocs = aiResult.chunks.map((chunk) => ({
-          meetingId: saved._id,
-          content: chunk.content,
-          embedding: chunk.embedding,
-        }));
-        await this.meetingChunkModel.insertMany(chunkDocs);
+      if (aiResult.chunks?.length) {
+        await this.meetingChunkModel.insertMany(
+          aiResult.chunks.map((chunk) => ({
+            meetingId: saved._id,
+            content: chunk.content,
+            embedding: chunk.embedding,
+          })),
+        );
       }
 
-      // 3. Cleanup Local File
       await fs.unlink(file.path);
 
-      // ✅ FIX: Convert Mongoose Document to Plain Object
-      // This stops ClassSerializerInterceptor from crashing on Mongoose internals
-      // Using JSON.parse(JSON.stringify()) ensures proper serialization of ObjectIds
-      return JSON.parse(JSON.stringify(saved.toObject())) as Omit<
-        Meeting,
-        '_id'
-      > & { _id: string };
+      return JSON.parse(JSON.stringify(saved.toObject()));
     } catch (error) {
-      if (file && file.path) await fs.unlink(file.path).catch(() => {});
+      if (file?.path) await fs.unlink(file.path).catch(() => {});
       throw error;
     }
   }
 
-  // Also update findAll to return plain objects
   async findAll() {
     const meetings = await this.meetingModel
       .find()
       .sort({ createdAt: -1 })
-      .lean() // Use lean() for better performance and proper JSON serialization
+      .lean()
       .exec();
-    // Use JSON serialization to ensure ObjectIds are converted to strings
-    return JSON.parse(JSON.stringify(meetings)) as Array<
-      Omit<Meeting, '_id'> & { _id: string }
-    >;
+
+    return JSON.parse(JSON.stringify(meetings));
   }
 
   async search(query: string) {
     const queryEmbedding = await this.aiService.generateEmbedding(query);
+
     const meetings = await this.meetingModel
       .find()
-      .select('clientName transcription summary createdAt embedding') // Get needed fields
+      .select('clientName summary embedding createdAt')
       .lean()
       .exec();
 
-    const results = meetings
-      .map((meeting) => {
-        if (!meeting.embedding || meeting.embedding.length === 0) return null;
-        const similarity = this.cosineSimilarity(
-          queryEmbedding,
-          meeting.embedding,
-        );
-        return {
-          ...meeting,
-          similarity,
-        };
-      })
-      .filter(
-        (item): item is NonNullable<typeof item> =>
-          item !== null && item.similarity > 0.3,
-      ) // Filter low relevance
+    return meetings
+      .map((m) => ({
+        ...m,
+        similarity: m.embedding
+          ? this.cosineSimilarity(queryEmbedding, m.embedding)
+          : 0,
+      }))
+      .filter((m) => m.similarity > 0.3)
       .sort((a, b) => b.similarity - a.similarity)
-      .slice(0, 5); // Start with top 5
-
-    // Return without embedding vector to save bandwidth
-    return results.map((item) => {
-      // eslint-disable-next-line @typescript-eslint/no-unused-vars
-      const { embedding, ...rest } = item;
-      return rest;
-    });
+      .slice(0, 5)
+      .map(({ embedding, ...rest }) => rest);
   }
 
-  async chat(query: string) {
+  // ===========================
+  // 🔥 FIXED CHAT METHOD
+  // ===========================
+  async chat(query: string, meetingId?: string) {
     const queryEmbedding = await this.aiService.generateEmbedding(query);
 
-    const chunks = await this.meetingChunkModel.find().lean().exec();
+    // 1️⃣ ALWAYS load meeting summary if meetingId exists
+    let meetingSummaryContext = '';
+
+    if (meetingId) {
+      const meeting = await this.meetingModel
+        .findById(new Types.ObjectId(meetingId))
+        .select('summary')
+        .lean()
+        .exec();
+
+      if (meeting?.summary) {
+        meetingSummaryContext = `
+MEETING SUMMARY:
+Key Points:
+${meeting.summary.keyPoints.join('\n')}
+
+Decisions:
+${meeting.summary.decisions.join('\n')}
+
+Follow-ups:
+${meeting.summary.followUps.join('\n')}
+`;
+      }
+    }
+
+    // 2️⃣ Retrieve relevant chunks (optional)
+    const chunkFilter: any = {};
+    if (meetingId) chunkFilter.meetingId = new Types.ObjectId(meetingId);
+
+    const chunks = await this.meetingChunkModel.find(chunkFilter).lean().exec();
 
     const relevantChunks = chunks
-      .map((chunk) => ({
-        ...chunk,
-        similarity: this.cosineSimilarity(queryEmbedding, chunk.embedding),
+      .map((c) => ({
+        ...c,
+        similarity: this.cosineSimilarity(queryEmbedding, c.embedding),
       }))
-      .filter((chunk) => chunk.similarity > 0.5)
+      .filter((c) => c.similarity > 0.3)
       .sort((a, b) => b.similarity - a.similarity)
       .slice(0, 5);
 
-    if (relevantChunks.length === 0) {
-      return {
-        answer:
-          "I couldn't find any relevant information in your past meetings to answer that.",
-        sources: [],
-      };
-    }
+    // 3️⃣ Conversation history (last 6)
+    const historyFilter: any = {};
+    if (meetingId) historyFilter.meetingId = new Types.ObjectId(meetingId);
 
-    // 🔹 Fetch meeting summaries
-    const meetingIds = [
-      ...new Set(relevantChunks.map((c) => c.meetingId.toString())),
-    ];
-
-    const meetings = await this.meetingModel
-      .find({ _id: { $in: meetingIds } })
-      .select('summary')
+    const lastMessages = await this.chatMessageModel
+      .find(historyFilter)
+      .sort({ createdAt: -1 })
+      .limit(6)
       .lean()
       .exec();
 
-    const summariesContext = meetings
-      .map(
-        (m) => `
-MEETING SUMMARY:
-Key Points:
-${m.summary.keyPoints.join('\n')}
+    const conversationContext = lastMessages
+      .reverse()
+      .map((m) => `${m.role.toUpperCase()}: ${m.content}`)
+      .join('\n');
 
-Decisions:
-${m.summary.decisions.join('\n')}
+    // 4️⃣ Build FINAL context (CORRECT LOGIC)
+    let context = '';
 
-Follow-ups:
-${m.summary.followUps.join('\n')}
-`,
-      )
-      .join('\n\n');
+    if (meetingSummaryContext) {
+      context += meetingSummaryContext;
+    }
 
-    const chunksContext = relevantChunks
-      .map((c) => `Transcript excerpt: ${c.content}`)
-      .join('\n\n');
+    if (relevantChunks.length > 0) {
+      const chunksContext = relevantChunks
+        .map((c) => `Transcript excerpt: ${c.content}`)
+        .join('\n\n');
 
-    const context = `
-${summariesContext}
-
+      context += `
 RELEVANT TRANSCRIPT EXCERPTS:
 ${chunksContext}
 `;
+    }
 
-    const answer = await this.aiService.answerQuestion(context, query);
+    const fullPrompt = `
+${conversationContext ? `CONVERSATION HISTORY:\n${conversationContext}\n` : ''}
+${context ? `CONTEXT FROM MEETING:\n${context}` : ''}
+`;
 
-    return {
-      answer,
-      sources: relevantChunks.map((c) => ({
-        meetingId: c.meetingId,
-        similarity: c.similarity,
-      })),
-    };
+    const answer = await this.aiService.answerQuestion(fullPrompt, query);
+
+    // 5️⃣ Save chat history
+    const sources = relevantChunks.map((c) => ({
+      meetingId: c.meetingId,
+      similarity: c.similarity,
+    }));
+
+    await this.chatMessageModel.create([
+      {
+        role: 'user',
+        content: query,
+        meetingId: meetingId ? new Types.ObjectId(meetingId) : undefined,
+      },
+      {
+        role: 'assistant',
+        content: answer,
+        meetingId: meetingId ? new Types.ObjectId(meetingId) : undefined,
+        sources,
+      },
+    ]);
+
+    return { answer, sources };
   }
 
-  private cosineSimilarity(vecA: number[], vecB: number[]): number {
-    const dotProduct = vecA.reduce((acc, val, i) => acc + val * vecB[i], 0);
-    const splitA = Math.sqrt(vecA.reduce((acc, val) => acc + val * val, 0));
-    const splitB = Math.sqrt(vecB.reduce((acc, val) => acc + val * val, 0));
-    return dotProduct / (splitA * splitB);
+  async getChatHistory(limit = 20, before?: string, meetingId?: string) {
+    const filter: any = {};
+    if (meetingId) filter.meetingId = new Types.ObjectId(meetingId);
+    if (before) filter.createdAt = { $lt: new Date(before) };
+
+    return this.chatMessageModel
+      .find(filter)
+      .sort({ createdAt: -1 })
+      .limit(limit)
+      .lean()
+      .exec();
+  }
+
+  private cosineSimilarity(vecA: number[], vecB: number[]) {
+    const dot = vecA.reduce((sum, v, i) => sum + v * vecB[i], 0);
+    const magA = Math.sqrt(vecA.reduce((s, v) => s + v * v, 0));
+    const magB = Math.sqrt(vecB.reduce((s, v) => s + v * v, 0));
+    return dot / (magA * magB);
   }
 }

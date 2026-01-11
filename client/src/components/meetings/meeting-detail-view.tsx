@@ -156,7 +156,7 @@ export function MeetingDetailView({
           </TabsContent>
 
           <TabsContent value="chat" className="h-full m-0 focus-visible:ring-0">
-            <ChatInterface />
+            <ChatInterface initialMeetingId={meeting._id} />
           </TabsContent>
         </div>
       </Tabs>

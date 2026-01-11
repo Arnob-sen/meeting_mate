@@ -18,3 +18,16 @@ export interface CreateMeetingRequest {
   clientName: string;
 }
 
+export interface ChatSource {
+  meetingId: string;
+  similarity: number;
+}
+
+export interface ChatMessage {
+  _id: string;
+  role: "user" | "assistant";
+  content: string;
+  meetingId?: string;
+  sources?: ChatSource[];
+  createdAt: string;
+}

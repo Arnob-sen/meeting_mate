@@ -13,6 +13,7 @@ import { diskStorage } from 'multer';
 import { extname } from 'path';
 import { ApiTags, ApiOperation, ApiConsumes, ApiBody } from '@nestjs/swagger';
 import { CreateMeetingDto } from './dto/create-meeting.dto';
+import { ChatDto } from './dto/chat.dto';
 
 @ApiTags('Meetings') // Groups endpoints in Scalar
 @Controller('meetings')
@@ -57,13 +58,24 @@ export class MeetingsController {
     if (!q) return [];
     return this.meetingsService.search(q);
   }
+
   @Post('chat')
   @ApiOperation({ summary: 'Chat with your meeting data (RAG)' })
-  @ApiBody({
-    schema: { type: 'object', properties: { query: { type: 'string' } } },
-  })
-  async chat(@Body('query') query: string) {
-    if (!query) return { answer: 'Please provide a question.', sources: [] };
-    return this.meetingsService.chat(query);
+  async chat(@Body() chatDto: ChatDto) {
+    return this.meetingsService.chat(chatDto.query, chatDto.meetingId);
+  }
+
+  @Get('chat/history')
+  @ApiOperation({ summary: 'Get paginated chat history' })
+  async getChatHistory(
+    @Query('limit') limit?: number,
+    @Query('before') before?: string,
+    @Query('meetingId') meetingId?: string,
+  ) {
+    return this.meetingsService.getChatHistory(
+      limit ? Number(limit) : 20,
+      before,
+      meetingId,
+    );
   }
 }

@@ -11,5 +11,6 @@ export const API_ENDPOINTS = {
     CREATE: `${API_BASE_URL}/api/meetings`,
     SEARCH: `${API_BASE_URL}/api/meetings/search`,
     CHAT: `${API_BASE_URL}/api/meetings/chat`,
+    CHAT_HISTORY: `${API_BASE_URL}/api/meetings/chat/history`,
   },
 } as const;

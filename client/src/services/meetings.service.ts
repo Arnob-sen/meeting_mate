@@ -1,6 +1,11 @@
 import axios from "axios";
 import { API_ENDPOINTS } from "@/constants/api.config";
-import type { Meeting, CreateMeetingRequest } from "@/types/meeting";
+import type {
+  Meeting,
+  CreateMeetingRequest,
+  ChatMessage,
+  ChatSource,
+} from "@/types/meeting";
 
 // Create axios instance with default headers to bypass ngrok warning page
 const apiClient = axios.create({
@@ -145,15 +150,16 @@ export const meetingsService = {
    * Chat with past meetings (RAG)
    */
   async chatWithMeetings(
-    query: string
-  ): Promise<{ answer: string; sources: string[] }> {
+    query: string,
+    meetingId?: string
+  ): Promise<{ answer: string; sources: ChatSource[] }> {
     try {
       const response = await apiClient.post<{
         answer: string;
-        sources: string[];
+        sources: ChatSource[];
       }>(
         API_ENDPOINTS.MEETINGS.CHAT,
-        { query },
+        { query, meetingId },
         {
           headers: {
             "ngrok-skip-browser-warning": "true",
@@ -164,6 +170,31 @@ export const meetingsService = {
     } catch (error) {
       console.error("Chat failed:", error);
       throw error;
+    }
+  },
+
+  /**
+   * Get paginated chat history
+   */
+  async getChatHistory(
+    limit: number = 20,
+    before?: string,
+    meetingId?: string
+  ): Promise<ChatMessage[]> {
+    try {
+      const response = await apiClient.get<ChatMessage[]>(
+        API_ENDPOINTS.MEETINGS.CHAT_HISTORY,
+        {
+          params: { limit, before, meetingId },
+          headers: {
+            "ngrok-skip-browser-warning": "true",
+          },
+        }
+      );
+      return response.data;
+    } catch (error) {
+      console.error("Failed to fetch chat history:", error);
+      return [];
     }
   },
 };
