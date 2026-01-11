@@ -48,8 +48,11 @@ export class MeetingsController {
 
   @Get()
   @ApiOperation({ summary: 'Get all past meeting summaries' })
-  async getMeetings() {
-    return this.meetingsService.findAll();
+  async getMeetings(
+    @Query('limit') limit?: number,
+    @Query('before') before?: string,
+  ) {
+    return this.meetingsService.findAll(limit ? Number(limit) : 20, before);
   }
 
   @Get('search')

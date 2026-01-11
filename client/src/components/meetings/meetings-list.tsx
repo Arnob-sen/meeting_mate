@@ -1,6 +1,8 @@
 "use client";
 
-import { useMeetings } from "@/hooks/use-meetings";
+import { useState, useEffect } from "react";
+import { meetingsService } from "@/services/meetings.service";
+import { Button } from "@/components/ui/button";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { MeetingCard } from "./meeting-card";
 import { Loader2, Inbox } from "lucide-react";
@@ -12,43 +14,74 @@ interface MeetingsListProps {
 }
 
 export function MeetingsList({ onSelect, selectedId }: MeetingsListProps) {
-  const { data: meetings, isLoading, error } = useMeetings();
+  const [meetings, setMeetings] = useState<Meeting[]>([]);
+  const [isLoading, setIsLoading] = useState(true);
+  const [isMoreLoading, setIsMoreLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const [hasMore, setHasMore] = useState(true);
 
-  const meetingsArray = Array.isArray(meetings) ? meetings : [];
+  const fetchMeetings = async (before?: string, append = false) => {
+    if (append) setIsMoreLoading(true);
+    else setIsLoading(true);
+
+    try {
+      const data = await meetingsService.getAllMeetings(5, before);
+      if (append) {
+        setMeetings((prev) => [...prev, ...data]);
+      } else {
+        setMeetings(data);
+      }
+      setHasMore(data.length === 5);
+      setError(null);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Failed to load meetings");
+    } finally {
+      setIsLoading(false);
+      setIsMoreLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    fetchMeetings();
+  }, []);
+
+  const handleLoadMore = () => {
+    if (meetings.length > 0) {
+      fetchMeetings(meetings[meetings.length - 1].createdAt, true);
+    }
+  };
 
   return (
     <div className="flex flex-col h-full">
-      <h2 className="text-xl font-bold mb-6 flex items-center gap-2">
-        Recent History
-      </h2>
+      <div className="flex items-center justify-between mb-4">
+        <h2 className="text-lg font-bold flex items-center gap-2">
+          Recent History
+        </h2>
+        {meetings.length > 0 && (
+          <span className="text-[10px] font-medium uppercase tracking-wider text-muted-foreground bg-secondary/50 px-2 py-0.5 rounded-full">
+            {meetings.length} Sessions
+          </span>
+        )}
+      </div>
       <ScrollArea className="flex-1 pr-4 -mr-4">
-        {isLoading ? (
-          <div className="flex flex-col items-center justify-center h-64 text-muted-foreground">
-            <Loader2 className="h-8 w-8 animate-spin text-primary mb-4" />
-            <p className="text-sm">Loading your meetings...</p>
+        {isLoading && meetings.length === 0 ? (
+          <div className="flex flex-col items-center justify-center h-48 text-muted-foreground">
+            <Loader2 className="h-6 w-6 animate-spin text-primary mb-3" />
+            <p className="text-xs">Finding your meetings...</p>
           </div>
         ) : error ? (
-          <div className="flex flex-col items-center justify-center h-64 border-2 border-dashed rounded-2xl p-8 text-center">
-            <div className="w-12 h-12 rounded-full bg-destructive/10 flex items-center justify-center mb-4">
-              <span className="text-destructive font-bold text-xl">!</span>
-            </div>
-            <p className="text-sm font-medium">Failed to load meetings</p>
-            <p className="text-xs text-muted-foreground mt-1">
-              {error instanceof Error ? error.message : "Unknown server error"}
-            </p>
+          <div className="flex flex-col items-center justify-center h-48 border border-dashed rounded-2xl p-6 text-center">
+            <p className="text-xs font-medium text-destructive">Error</p>
+            <p className="text-[10px] text-muted-foreground mt-1">{error}</p>
           </div>
-        ) : meetingsArray.length === 0 ? (
-          <div className="flex flex-col items-center justify-center h-64 border-2 border-dashed rounded-2xl p-8 text-center bg-secondary/10">
-            <Inbox className="h-10 w-10 text-muted-foreground/30 mb-4" />
-            <p className="text-sm font-medium">No meetings yet</p>
-            <p className="text-xs text-muted-foreground mt-1 max-w-[200px]">
-              Tap &quot;Offline Meeting&quot; to start capturing your first
-              session.
-            </p>
+        ) : meetings.length === 0 ? (
+          <div className="flex flex-col items-center justify-center h-48 border border-dashed rounded-2xl p-6 text-center bg-secondary/5">
+            <Inbox className="h-8 w-8 text-muted-foreground/20 mb-3" />
+            <p className="text-xs font-medium">No meetings capture yet</p>
           </div>
         ) : (
-          <div className="space-y-3 pb-4">
-            {meetingsArray.map((meeting) => (
+          <div className="space-y-4 pb-2">
+            {meetings.map((meeting) => (
               <MeetingCard
                 key={meeting._id}
                 meeting={meeting}
@@ -56,6 +89,23 @@ export function MeetingsList({ onSelect, selectedId }: MeetingsListProps) {
                 isActive={selectedId === meeting._id}
               />
             ))}
+
+            {hasMore && (
+              <div className="pt-2 flex justify-center">
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  onClick={handleLoadMore}
+                  disabled={isMoreLoading}
+                  className="w-full text-[10px] h-8 font-semibold uppercase tracking-wider text-muted-foreground hover:text-primary hover:bg-primary/5 rounded-xl border border-transparent hover:border-primary/10 transition-all"
+                >
+                  {isMoreLoading ? (
+                    <Loader2 className="h-3 w-3 animate-spin mr-2" />
+                  ) : null}
+                  Load More Meetings
+                </Button>
+              </div>
+            )}
           </div>
         )}
       </ScrollArea>

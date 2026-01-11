@@ -18,10 +18,16 @@ export const meetingsService = {
   /**
    * Fetch all meetings
    */
-  async getAllMeetings(): Promise<Meeting[]> {
+  async getAllMeetings(limit = 20, before?: string): Promise<Meeting[]> {
     try {
       const response = await apiClient.get<Meeting[]>(
-        API_ENDPOINTS.MEETINGS.GET_ALL
+        API_ENDPOINTS.MEETINGS.GET_ALL,
+        {
+          params: { limit, before },
+          headers: {
+            "ngrok-skip-browser-warning": "true",
+          },
+        }
       );
 
       // Check if response is HTML (ngrok warning page)

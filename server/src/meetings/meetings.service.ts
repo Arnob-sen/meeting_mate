@@ -60,10 +60,14 @@ export class MeetingsService {
     }
   }
 
-  async findAll() {
+  async findAll(limit = 20, before?: string) {
+    const filter: any = {};
+    if (before) filter.createdAt = { $lt: new Date(before) };
+
     const meetings = await this.meetingModel
-      .find()
+      .find(filter)
       .sort({ createdAt: -1 })
+      .limit(limit)
       .lean()
       .exec();
 
