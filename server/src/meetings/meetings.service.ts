@@ -58,7 +58,10 @@ export class MeetingsService {
       }
 
       await fs.unlink(file.path);
-      return meeting.toObject();
+      return {
+        ...meeting.toObject(),
+        _id: meeting._id.toString(),
+      };
     } catch (err) {
       if (file?.path) await fs.unlink(file.path).catch(() => {});
       throw err;
@@ -73,12 +76,18 @@ export class MeetingsService {
     const filter: any = {};
     if (before) filter.createdAt = { $lt: new Date(before) };
 
-    return this.meetingModel
+    const meetings = await this.meetingModel
       .find(filter)
       .sort({ createdAt: -1 })
       .limit(limit)
       .lean()
       .exec();
+
+    // Convert _id to string
+    return meetings.map((m) => ({
+      ...m,
+      _id: m._id.toString(),
+    }));
   }
 
   /* =========================
