@@ -15,7 +15,7 @@ export interface MeetingSummary {
     sentiment: string;
   };
   embedding: number[];
-  chunks?: { content: string; embedding: number[] }[];
+  chunks?: { content: string; summary: string; embedding: number[] }[];
 }
 
 interface JsonResult {
@@ -55,7 +55,7 @@ export class AiService {
   }
 
   /* =========================================================
-     PUBLIC ENTRY POINT (REQUIRED)
+     PUBLIC ENTRY POINT
   ========================================================= */
 
   async processAudioFile(
@@ -70,7 +70,6 @@ export class AiService {
         mimeType,
         displayName: 'Meeting Audio',
       });
-
       uploadedFileName = upload.file.name;
 
       let file = await this.fileManager.getFile(upload.file.name);
@@ -78,7 +77,6 @@ export class AiService {
         await new Promise((r) => setTimeout(r, 1000));
         file = await this.fileManager.getFile(upload.file.name);
       }
-
       if (file.state === FileState.FAILED) {
         throw new Error('Audio processing failed');
       }
@@ -89,19 +87,21 @@ export class AiService {
         upload.file.mimeType,
       );
 
-      // 3️⃣ Deep analysis (LangGraph)
+      // 3️⃣ Deep analysis
       const analysis = await this.runAgentWorkflow(transcript);
 
-      // 4️⃣ Embeddings
+      // 4️⃣ Embedding (full transcript)
       const embedding = await this.generateEmbedding(transcript);
 
-      // 5️⃣ Chunking + embeddings
+      // 5️⃣ Chunking + embeddings + pre-summarize
       const chunks = this.chunkText(transcript);
       const chunksWithEmbeddings = await Promise.all(
-        chunks.map(async (chunk) => ({
-          content: chunk,
-          embedding: await this.generateEmbedding(chunk),
-        })),
+        chunks.map(async (chunk) => {
+          const embedding = await this.generateEmbedding(chunk);
+          const summary =
+            chunk.length > 300 ? chunk.slice(0, 300) + '...' : chunk;
+          return { content: chunk, summary, embedding };
+        }),
       );
 
       return {
@@ -138,26 +138,22 @@ export class AiService {
     });
 
     const result = await model.generateContent([
-      {
-        fileData: { fileUri, mimeType },
-      },
-      {
-        text: 'Transcribe this audio. Return ONLY the raw text.',
-      },
+      { fileData: { fileUri, mimeType } },
+      { text: 'Transcribe this audio. Return ONLY the raw text.' },
     ]);
 
     return result.response.text().trim();
   }
 
   /* =========================================================
-     LANGGRAPH ANALYSIS (NOW ACTUALLY USED)
+     LANGGRAPH ANALYSIS
   ========================================================= */
 
   private async runAgentWorkflow(transcript: string) {
     const cleanNode = async (state: typeof MeetingStateAnnotation.State) => {
       const result = await this.model.invoke([
         new SystemMessage(
-          'Clean the transcript by fixing STT errors. Do not summarize.',
+          'Clean transcript. Fix STT errors. Do not summarize.',
         ),
         new HumanMessage(state.transcription),
       ]);
@@ -167,22 +163,10 @@ export class AiService {
     const analyzeNode = async (state: typeof MeetingStateAnnotation.State) => {
       const result = await this.model.invoke([
         new SystemMessage(`
-You are a senior sales meeting intelligence system.
-
-Extract:
-- 6–10 key points across ALL topics
-- Explicit or implied decisions
-- Explicit and inferred follow-up actions
-- Overall sentiment (Positive / Neutral / Negative)
-
-Return JSON ONLY:
-{
-  "keyPoints": [],
-  "decisions": [],
-  "followUps": [],
-  "sentiment": ""
-}
-        `),
+You are a meeting intelligence assistant.
+Extract up to 5 key points, max 3 decisions, max 3 follow-ups, overall sentiment.
+Return concise JSON ONLY.
+`),
         new HumanMessage(state.cleanedTranscript),
       ]);
 
@@ -222,13 +206,13 @@ Return JSON ONLY:
 
   async generateEmbedding(text: string): Promise<number[]> {
     const model = this.genAI.getGenerativeModel({
-      model: 'text-embedding-004',
+      model: 'text-embedding-003', // cheaper, still high quality
     });
     const result = await model.embedContent(text);
     return result.embedding.values;
   }
 
-  chunkText(text: string, chunkSize = 1000, overlap = 200): string[] {
+  chunkText(text: string, chunkSize = 500, overlap = 100): string[] {
     const chunks: string[] = [];
     let start = 0;
     while (start < text.length) {
@@ -246,7 +230,7 @@ ${context}
 
 Question: ${query}
 If not answerable, say you don't know.
-      `),
+`),
     ]);
     return result.content.toString();
   }

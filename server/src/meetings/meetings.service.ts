@@ -14,6 +14,10 @@ import {
 } from './schemas/chat-message.schema';
 import { AiService } from '../ai/ai.service';
 
+const MAX_CONTEXT_CHARS = 6000;
+const MAX_CHUNKS = 3;
+const MAX_HISTORY_MESSAGES = 4;
+
 @Injectable()
 export class MeetingsService {
   constructor(
@@ -25,6 +29,10 @@ export class MeetingsService {
     private aiService: AiService,
   ) {}
 
+  /* =========================
+     CREATE MEETING
+  ========================= */
+
   async create(file: Express.Multer.File, clientName: string) {
     try {
       const aiResult = await this.aiService.processAudioFile(
@@ -32,47 +40,50 @@ export class MeetingsService {
         file.mimetype,
       );
 
-      const newMeeting = new this.meetingModel({
+      const meeting = await this.meetingModel.create({
         clientName,
         transcription: aiResult.transcription,
         summary: aiResult.summary,
         embedding: aiResult.embedding,
       });
 
-      const saved = await newMeeting.save();
-
       if (aiResult.chunks?.length) {
         await this.meetingChunkModel.insertMany(
-          aiResult.chunks.map((chunk) => ({
-            meetingId: saved._id,
-            content: chunk.content,
-            embedding: chunk.embedding,
+          aiResult.chunks.map((c) => ({
+            meetingId: meeting._id,
+            content: c.content,
+            embedding: c.embedding,
           })),
         );
       }
 
       await fs.unlink(file.path);
-
-      return JSON.parse(JSON.stringify(saved.toObject()));
-    } catch (error) {
+      return meeting.toObject();
+    } catch (err) {
       if (file?.path) await fs.unlink(file.path).catch(() => {});
-      throw error;
+      throw err;
     }
   }
+
+  /* =========================
+     FIND ALL (unchanged)
+  ========================= */
 
   async findAll(limit = 20, before?: string) {
     const filter: any = {};
     if (before) filter.createdAt = { $lt: new Date(before) };
 
-    const meetings = await this.meetingModel
+    return this.meetingModel
       .find(filter)
       .sort({ createdAt: -1 })
       .limit(limit)
       .lean()
       .exec();
-
-    return JSON.parse(JSON.stringify(meetings));
   }
+
+  /* =========================
+     SEARCH (unchanged)
+  ========================= */
 
   async search(query: string) {
     const queryEmbedding = await this.aiService.generateEmbedding(query);
@@ -96,24 +107,24 @@ export class MeetingsService {
       .map(({ embedding, ...rest }) => rest);
   }
 
-  // ===========================
-  // 🔥 FIXED CHAT METHOD
-  // ===========================
+  /* =========================
+     🔥 OPTIMIZED CHAT
+  ========================= */
+
   async chat(query: string, meetingId?: string) {
     const queryEmbedding = await this.aiService.generateEmbedding(query);
 
-    // 1️⃣ ALWAYS load meeting summary if meetingId exists
-    let meetingSummaryContext = '';
+    let context = '';
 
+    /* 1️⃣ Meeting summary FIRST (cheap + powerful) */
     if (meetingId) {
       const meeting = await this.meetingModel
-        .findById(new Types.ObjectId(meetingId))
+        .findById(meetingId)
         .select('summary')
-        .lean()
-        .exec();
+        .lean();
 
       if (meeting?.summary) {
-        meetingSummaryContext = `
+        context += `
 MEETING SUMMARY:
 Key Points:
 ${meeting.summary.keyPoints.join('\n')}
@@ -127,88 +138,68 @@ ${meeting.summary.followUps.join('\n')}
       }
     }
 
-    // 2️⃣ Retrieve relevant chunks (optional)
-    const chunkFilter: any = {};
-    if (meetingId) chunkFilter.meetingId = new Types.ObjectId(meetingId);
+    /* 2️⃣ Add transcript chunks ONLY if needed */
+    if (context.length < MAX_CONTEXT_CHARS && meetingId) {
+      const chunks = await this.meetingChunkModel
+        .find({ meetingId })
+        .select('content embedding')
+        .lean();
 
-    const chunks = await this.meetingChunkModel.find(chunkFilter).lean().exec();
+      const relevantChunks = chunks
+        .map((c) => ({
+          ...c,
+          similarity: this.cosineSimilarity(queryEmbedding, c.embedding),
+        }))
+        .filter((c) => c.similarity > 0.35)
+        .sort((a, b) => b.similarity - a.similarity)
+        .slice(0, MAX_CHUNKS);
 
-    const relevantChunks = chunks
-      .map((c) => ({
-        ...c,
-        similarity: this.cosineSimilarity(queryEmbedding, c.embedding),
-      }))
-      .filter((c) => c.similarity > 0.3)
-      .sort((a, b) => b.similarity - a.similarity)
-      .slice(0, 5);
+      if (relevantChunks.length) {
+        context += `\nRELEVANT TRANSCRIPT EXCERPTS:\n`;
+        context += relevantChunks
+          .map((c) => c.content.slice(0, 500)) // 🔥 trim
+          .join('\n\n');
+      }
+    }
 
-    // 3️⃣ Conversation history (last 6)
-    const historyFilter: any = {};
-    if (meetingId) historyFilter.meetingId = new Types.ObjectId(meetingId);
-
-    const lastMessages = await this.chatMessageModel
-      .find(historyFilter)
+    /* 3️⃣ Short conversation history */
+    const history = await this.chatMessageModel
+      .find(meetingId ? { meetingId } : {})
       .sort({ createdAt: -1 })
-      .limit(6)
-      .lean()
-      .exec();
+      .limit(MAX_HISTORY_MESSAGES)
+      .lean();
 
-    const conversationContext = lastMessages
-      .reverse()
-      .map((m) => `${m.role.toUpperCase()}: ${m.content}`)
-      .join('\n');
-
-    // 4️⃣ Build FINAL context (CORRECT LOGIC)
-    let context = '';
-
-    if (meetingSummaryContext) {
-      context += meetingSummaryContext;
+    if (history.length) {
+      context =
+        `CONVERSATION HISTORY:\n` +
+        history
+          .reverse()
+          .map((m) => `${m.role}: ${m.content.slice(0, 200)}`)
+          .join('\n') +
+        `\n\n` +
+        context;
     }
 
-    if (relevantChunks.length > 0) {
-      const chunksContext = relevantChunks
-        .map((c) => `Transcript excerpt: ${c.content}`)
-        .join('\n\n');
+    /* 4️⃣ Enforce hard limit */
+    context = context.slice(0, MAX_CONTEXT_CHARS);
 
-      context += `
-RELEVANT TRANSCRIPT EXCERPTS:
-${chunksContext}
-`;
-    }
-
-    const fullPrompt = `
-${conversationContext ? `CONVERSATION HISTORY:\n${conversationContext}\n` : ''}
-${context ? `CONTEXT FROM MEETING:\n${context}` : ''}
-`;
-
-    const answer = await this.aiService.answerQuestion(fullPrompt, query);
-
-    // 5️⃣ Save chat history
-    const sources = relevantChunks.map((c) => ({
-      meetingId: c.meetingId,
-      similarity: c.similarity,
-    }));
+    const answer = await this.aiService.answerQuestion(context, query);
 
     await this.chatMessageModel.create([
-      {
-        role: 'user',
-        content: query,
-        meetingId: meetingId ? new Types.ObjectId(meetingId) : undefined,
-      },
-      {
-        role: 'assistant',
-        content: answer,
-        meetingId: meetingId ? new Types.ObjectId(meetingId) : undefined,
-        sources,
-      },
+      { role: 'user', content: query, meetingId },
+      { role: 'assistant', content: answer, meetingId },
     ]);
 
-    return { answer, sources };
+    return { answer };
   }
+
+  /* =========================
+     CHAT HISTORY
+  ========================= */
 
   async getChatHistory(limit = 20, before?: string, meetingId?: string) {
     const filter: any = {};
-    if (meetingId) filter.meetingId = new Types.ObjectId(meetingId);
+    if (meetingId) filter.meetingId = meetingId;
     if (before) filter.createdAt = { $lt: new Date(before) };
 
     return this.chatMessageModel
@@ -219,10 +210,14 @@ ${context ? `CONTEXT FROM MEETING:\n${context}` : ''}
       .exec();
   }
 
-  private cosineSimilarity(vecA: number[], vecB: number[]) {
-    const dot = vecA.reduce((sum, v, i) => sum + v * vecB[i], 0);
-    const magA = Math.sqrt(vecA.reduce((s, v) => s + v * v, 0));
-    const magB = Math.sqrt(vecB.reduce((s, v) => s + v * v, 0));
+  /* =========================
+     UTILS
+  ========================= */
+
+  private cosineSimilarity(a: number[], b: number[]) {
+    const dot = a.reduce((s, v, i) => s + v * b[i], 0);
+    const magA = Math.sqrt(a.reduce((s, v) => s + v * v, 0));
+    const magB = Math.sqrt(b.reduce((s, v) => s + v * v, 0));
     return dot / (magA * magB);
   }
 }
