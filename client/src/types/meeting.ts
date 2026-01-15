@@ -8,8 +8,9 @@ export interface MeetingSummary {
 export interface Meeting {
   _id: string;
   clientName: string;
-  transcription: string;
-  summary: MeetingSummary;
+  status: "PROCESSING" | "COMPLETED" | "FAILED";
+  transcription?: string;
+  summary?: MeetingSummary;
   createdAt: string;
 }
 

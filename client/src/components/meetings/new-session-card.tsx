@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 import { useAudioRecorder } from "@/hooks/use-audio-recorder";
-import { useCreateMeeting } from "@/hooks/use-meetings";
+import { useCreateMeeting, usePollMeetingStatus } from "@/hooks/use-meetings";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import {
@@ -28,7 +28,17 @@ export function NewSessionCard() {
     resetRecording,
   } = useAudioRecorder();
   const [clientName, setClientName] = useState("");
-  const createMeetingMutation = useCreateMeeting();
+  const [processingMeetingId, setProcessingMeetingId] = useState<
+    string | undefined
+  >();
+
+  // Start polling when a meeting is being processed
+  usePollMeetingStatus(processingMeetingId);
+
+  const createMeetingMutation = useCreateMeeting((meeting) => {
+    // Start polling for this meeting's status
+    setProcessingMeetingId(meeting._id);
+  });
 
   const handleProcess = () => {
     if (!audioBlob) {

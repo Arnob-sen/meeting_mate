@@ -1,11 +1,12 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback } from "react";
+import { useQueryClient } from "@tanstack/react-query";
 import { meetingsService } from "@/services/meetings.service";
 import { Button } from "@/components/ui/button";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { MeetingCard } from "./meeting-card";
-import { Loader2, Inbox } from "lucide-react";
+import { Loader2, Inbox, RefreshCw } from "lucide-react";
 import { Meeting } from "@/types/meeting";
 
 interface MeetingsListProps {
@@ -14,13 +15,14 @@ interface MeetingsListProps {
 }
 
 export function MeetingsList({ onSelect, selectedId }: MeetingsListProps) {
+  const queryClient = useQueryClient();
   const [meetings, setMeetings] = useState<Meeting[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [isMoreLoading, setIsMoreLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [hasMore, setHasMore] = useState(true);
 
-  const fetchMeetings = async (before?: string, append = false) => {
+  const fetchMeetings = useCallback(async (before?: string, append = false) => {
     if (append) setIsMoreLoading(true);
     else setIsLoading(true);
 
@@ -39,16 +41,32 @@ export function MeetingsList({ onSelect, selectedId }: MeetingsListProps) {
       setIsLoading(false);
       setIsMoreLoading(false);
     }
-  };
+  }, []);
 
   useEffect(() => {
     fetchMeetings();
-  }, []);
+  }, [fetchMeetings]);
+
+  // Subscribe to React Query cache invalidations for auto-refresh
+  useEffect(() => {
+    const unsubscribe = queryClient.getQueryCache().subscribe((event) => {
+      if (event.type === "updated" && event.query.queryKey[0] === "meetings") {
+        // Refetch when the meetings cache is invalidated
+        fetchMeetings();
+      }
+    });
+
+    return () => unsubscribe();
+  }, [queryClient, fetchMeetings]);
 
   const handleLoadMore = () => {
     if (meetings.length > 0) {
       fetchMeetings(meetings[meetings.length - 1].createdAt, true);
     }
+  };
+
+  const handleRefresh = () => {
+    fetchMeetings();
   };
 
   return (
@@ -57,11 +75,24 @@ export function MeetingsList({ onSelect, selectedId }: MeetingsListProps) {
         <h2 className="text-lg font-bold flex items-center gap-2">
           Recent History
         </h2>
-        {meetings.length > 0 && (
-          <span className="text-[10px] font-medium uppercase tracking-wider text-muted-foreground bg-secondary/50 px-2 py-0.5 rounded-full">
-            {meetings.length} Sessions
-          </span>
-        )}
+        <div className="flex items-center gap-2">
+          {meetings.length > 0 && (
+            <span className="text-[10px] font-medium uppercase tracking-wider text-muted-foreground bg-secondary/50 px-2 py-0.5 rounded-full">
+              {meetings.length} Sessions
+            </span>
+          )}
+          <Button
+            variant="ghost"
+            size="icon"
+            onClick={handleRefresh}
+            disabled={isLoading}
+            className="h-6 w-6 rounded-full"
+          >
+            <RefreshCw
+              className={`h-3 w-3 ${isLoading ? "animate-spin" : ""}`}
+            />
+          </Button>
+        </div>
       </div>
       <ScrollArea className="flex-1 pr-4 -mr-4">
         {isLoading && meetings.length === 0 ? (
@@ -77,7 +108,7 @@ export function MeetingsList({ onSelect, selectedId }: MeetingsListProps) {
         ) : meetings.length === 0 ? (
           <div className="flex flex-col items-center justify-center h-48 border border-dashed rounded-2xl p-6 text-center bg-secondary/5">
             <Inbox className="h-8 w-8 text-muted-foreground/20 mb-3" />
-            <p className="text-xs font-medium">No meetings capture yet</p>
+            <p className="text-xs font-medium">No meetings captured yet</p>
           </div>
         ) : (
           <div className="space-y-4 pb-2">

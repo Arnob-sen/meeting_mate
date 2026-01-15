@@ -135,6 +135,26 @@ export const meetingsService = {
   },
 
   /**
+   * Get a single meeting by ID (for polling status)
+   */
+  async getMeetingById(id: string): Promise<Meeting | null> {
+    try {
+      const response = await apiClient.get<Meeting>(
+        `${API_ENDPOINTS.MEETINGS.BASE}/${id}`,
+        {
+          headers: {
+            "ngrok-skip-browser-warning": "true",
+          },
+        }
+      );
+      return response.data;
+    } catch (error) {
+      console.error("Failed to fetch meeting:", error);
+      return null;
+    }
+  },
+
+  /**
    * Search meetings semantically
    */
   async searchMeetings(query: string): Promise<Meeting[]> {

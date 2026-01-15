@@ -74,6 +74,16 @@ export class MeetingsService {
     return JSON.parse(JSON.stringify(meetings));
   }
 
+  async findOne(id: string) {
+    const meeting = await this.meetingModel
+      .findById(id)
+      .select('clientName summary transcription status createdAt')
+      .lean()
+      .exec();
+
+    return meeting ? JSON.parse(JSON.stringify(meeting)) : null;
+  }
+
   async search(query: string) {
     const queryEmbedding = await this.aiService.generateEmbedding(query);
 

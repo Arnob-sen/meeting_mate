@@ -6,6 +6,7 @@ import {
   UploadedFile,
   UseInterceptors,
   Query,
+  Param,
 } from '@nestjs/common';
 import { FileInterceptor } from '@nestjs/platform-express';
 import { MeetingsService } from './meetings.service';
@@ -44,6 +45,12 @@ export class MeetingsController {
     @Body() body: CreateMeetingDto, // Use DTO here
   ) {
     return this.meetingsService.create(file, body.clientName);
+  }
+
+  @Get(':id')
+  @ApiOperation({ summary: 'Get a single meeting by ID (for status polling)' })
+  async getMeeting(@Param('id') id: string) {
+    return this.meetingsService.findOne(id);
   }
 
   @Get()

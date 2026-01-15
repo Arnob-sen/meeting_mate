@@ -2,7 +2,7 @@
 
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
-import { Calendar, Clock, FileText, ChevronRight } from "lucide-react";
+import { Calendar, Clock, FileText, ChevronRight, Loader2 } from "lucide-react";
 import { Meeting } from "@/types/meeting";
 import { cn } from "@/lib/utils";
 
@@ -19,11 +19,17 @@ export function MeetingCard({ meeting, onClick, isActive }: MeetingCardProps) {
     day: "numeric",
   });
 
+  const isProcessing = meeting.status === "PROCESSING";
+  const isFailed = meeting.status === "FAILED";
+
   return (
     <Card
-      onClick={onClick}
+      onClick={isProcessing ? undefined : onClick}
       className={cn(
-        "group relative border-none transition-all duration-200 cursor-pointer rounded-xl",
+        "group relative border-none transition-all duration-200 rounded-xl",
+        isProcessing
+          ? "bg-secondary/20 opacity-70 cursor-wait"
+          : "cursor-pointer",
         isActive
           ? "bg-primary text-primary-foreground shadow-lg shadow-primary/20 ring-2 ring-primary ring-offset-2 ring-offset-background"
           : "bg-secondary/30 hover:bg-secondary/50"
@@ -34,12 +40,18 @@ export function MeetingCard({ meeting, onClick, isActive }: MeetingCardProps) {
           <div
             className={cn(
               "p-2 rounded-xl border transition-colors shadow-sm",
-              isActive
+              isProcessing
+                ? "bg-secondary/30 border-secondary/50 text-muted-foreground"
+                : isActive
                 ? "bg-primary-foreground/10 border-primary-foreground/20 text-primary-foreground"
                 : "bg-card group-hover:bg-primary group-hover:text-primary-foreground group-hover:border-primary"
             )}
           >
-            <Calendar className="w-5 h-5" />
+            {isProcessing ? (
+              <Loader2 className="w-5 h-5 animate-spin" />
+            ) : (
+              <Calendar className="w-5 h-5" />
+            )}
           </div>
 
           <div className="flex-1 min-w-0">
@@ -50,13 +62,20 @@ export function MeetingCard({ meeting, onClick, isActive }: MeetingCardProps) {
               <Badge
                 variant="outline"
                 className={cn(
-                  "border-emerald-500/20",
-                  isActive
+                  isProcessing
+                    ? "bg-amber-500/10 text-amber-600 border-amber-500/20 animate-pulse"
+                    : isFailed
+                    ? "bg-red-500/10 text-red-600 border-red-500/20"
+                    : isActive
                     ? "bg-primary-foreground/20 text-primary-foreground border-transparent"
-                    : "bg-emerald-500/10 text-emerald-600"
+                    : "bg-emerald-500/10 text-emerald-600 border-emerald-500/20"
                 )}
               >
-                Analyzed
+                {isProcessing
+                  ? "Processing..."
+                  : isFailed
+                  ? "Failed"
+                  : "Analyzed"}
               </Badge>
             </div>
 
@@ -73,11 +92,16 @@ export function MeetingCard({ meeting, onClick, isActive }: MeetingCardProps) {
               </span>
               <span className="flex items-center gap-1">
                 <FileText className="w-3 h-3" />
-                {meeting.summary ? "Summary ready" : "Transcript only"}
+                {isProcessing
+                  ? "AI analyzing..."
+                  : meeting.summary
+                  ? "Summary ready"
+                  : "Transcript only"}
               </span>
             </div>
 
-            {meeting.summary?.keyPoints &&
+            {!isProcessing &&
+              meeting.summary?.keyPoints &&
               meeting.summary.keyPoints.length > 0 && (
                 <p
                   className={cn(
@@ -95,7 +119,9 @@ export function MeetingCard({ meeting, onClick, isActive }: MeetingCardProps) {
           <ChevronRight
             className={cn(
               "w-5 h-5 transition-all self-center",
-              isActive
+              isProcessing
+                ? "text-muted-foreground/20"
+                : isActive
                 ? "text-primary-foreground translate-x-1"
                 : "text-muted-foreground/30 group-hover:text-primary group-hover:translate-x-1"
             )}

@@ -119,7 +119,7 @@ export default function Dashboard() {
             selectedMeeting ? "lg:col-span-8" : "lg:col-span-4"
           )}
         >
-          <div className="bg-card border rounded-2xl h-[700px] p-5">
+          <div className="bg-card border rounded-2xl h-[890px] p-5">
             {selectedMeeting ? (
               <MeetingDetailView
                 meeting={selectedMeeting}
@@ -137,7 +137,7 @@ export default function Dashboard() {
         {/* RIGHT – Chatbot */}
         {!selectedMeeting && (
           <div className="lg:col-span-4">
-            <div className="bg-card border rounded-2xl h-[700px] overflow-hidden">
+            <div className="bg-card border rounded-2xl h-[760px] overflow-hidden">
               <ChatInterface />
             </div>
           </div>
