@@ -1,5 +1,6 @@
 import { Module } from '@nestjs/common';
 import { MongooseModule } from '@nestjs/mongoose';
+import { BullModule } from '@nestjs/bullmq';
 import { MeetingsController } from './meetings.controller';
 import { MeetingsService } from './meetings.service';
 import { Meeting, MeetingSchema } from './schemas/meeting.schema';
@@ -8,22 +9,23 @@ import {
   MeetingChunkSchema,
 } from './schemas/meeting-chunk.schema';
 import { ChatMessage, ChatMessageSchema } from './schemas/chat-message.schema';
-import { AiModule } from '../ai/ai.module'; // Import the AI module
+import { AiModule } from '../ai/ai.module';
+import { MeetingProcessor } from './meeting.processor';
 
 @Module({
   imports: [
-    // 1. Register the specific collection/model for this module
     MongooseModule.forFeature([
       { name: Meeting.name, schema: MeetingSchema },
       { name: MeetingChunk.name, schema: MeetingChunkSchema },
       { name: ChatMessage.name, schema: ChatMessageSchema },
     ]),
-
-    // 2. Import AiModule so MeetingsService can use AiService
+    BullModule.registerQueue({
+      name: 'meetings',
+    }),
     AiModule,
   ],
   controllers: [MeetingsController],
-  providers: [MeetingsService],
+  providers: [MeetingsService, MeetingProcessor],
   exports: [MeetingsService],
 })
 export class MeetingsModule {}

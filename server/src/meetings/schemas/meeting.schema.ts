@@ -16,14 +16,21 @@ export class Meeting {
   @Prop({ required: true })
   clientName: string;
 
+  @Prop({
+    required: true,
+    enum: ['PROCESSING', 'COMPLETED', 'FAILED'],
+    default: 'PROCESSING',
+  })
+  status: string;
+
   @Prop()
-  transcription: string;
+  transcription?: string;
 
   @Prop({ type: Summary })
-  summary: Summary;
+  summary?: Summary;
 
   @Prop([Number])
-  embedding: number[];
+  embedding?: number[];
 
   // Note: We don't save the audio file path permanently in MVP to save disk space,
   // but you could add @Prop() audioUrl: string; here.
