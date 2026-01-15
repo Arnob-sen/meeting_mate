@@ -1,19 +1,41 @@
+/**
+ * Formats RAG responses from the chatbot.
+ * Handles both plain text answers and structured JSON summaries.
+ */
 function formatRagResponse(data: any): string {
-  let json = data;
-
-  // 1. Handle string input (try to parse JSON)
+  // 1. Handle string input
   if (typeof data === "string") {
-    try {
-      // Remove markdown code blocks if present
-      const cleanData = data.replace(/```json\n?|```/g, "").trim();
-      json = JSON.parse(cleanData);
-    } catch {
-      // If parsing fails, return the original string (it might be a normal text response)
-      return data;
+    // Clean up markdown code blocks if present
+    const cleanData = data.replace(/```json\n?|```/g, "").trim();
+
+    // Only try to parse if it looks like a JSON summary format (has keyPoints structure)
+    if (cleanData.startsWith("{") && cleanData.includes('"keyPoints"')) {
+      try {
+        const json = JSON.parse(cleanData);
+        return formatSummaryJson(json);
+      } catch {
+        // If parsing fails, return original text
+        return data;
+      }
     }
+
+    // Return plain text responses as-is
+    return data;
   }
 
-  // 2. Format JSON structure if valid
+  // 2. Handle object input (structured summary)
+  if (typeof data === "object" && data !== null) {
+    return formatSummaryJson(data);
+  }
+
+  // Fallback
+  return String(data);
+}
+
+/**
+ * Formats a structured meeting summary JSON into readable text.
+ */
+function formatSummaryJson(json: any): string {
   let text = "";
 
   if (
@@ -56,13 +78,13 @@ function formatRagResponse(data: any): string {
     text += `**Sentiment:** ${json.sentiment}\n`;
   }
 
-  // If we found formatted content, return it. Otherwise, return the original (or parsed) object as string if it wasn't the expected structure
+  // If we found formatted content, return it
   if (text) {
     return text.trim();
   }
 
-  // Fallback: If it was JSON but different structure, return it stringified or original string
-  return typeof data === "string" ? data : JSON.stringify(data, null, 2);
+  // Fallback: return stringified JSON for unexpected structures
+  return JSON.stringify(json, null, 2);
 }
 
 export default formatRagResponse;

@@ -240,12 +240,21 @@ Return JSON ONLY:
 
   async answerQuestion(context: string, query: string): Promise<string> {
     const result = await this.model.invoke([
+      new SystemMessage(`You are a helpful meeting assistant. Your job is to answer questions about meetings based on the provided context.
+
+RULES:
+1. Give DIRECT, SPECIFIC answers to the user's question
+2. Do NOT return JSON or structured data - respond in natural, conversational text
+3. Be CONCISE - only include information relevant to the question
+4. If the answer is not in the context, say you don't have that information
+5. Use bullet points only when listing multiple items`),
       new HumanMessage(`
-Answer ONLY using this context:
+MEETING CONTEXT:
 ${context}
 
-Question: ${query}
-If not answerable, say you don't know.
+USER QUESTION: ${query}
+
+Provide a focused, direct answer to this specific question.
       `),
     ]);
     return result.content.toString();
