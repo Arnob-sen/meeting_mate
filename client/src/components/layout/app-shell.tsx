@@ -172,15 +172,18 @@ import {
   Search,
   Bell,
   User,
+  LogOut,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
+import { useSession, signOut } from "next-auth/react";
 
 interface AppShellProps {
   children: React.ReactNode;
 }
 
 export function AppShell({ children }: AppShellProps) {
+  const { data: session } = useSession();
   const [isSidebarOpen, setIsSidebarOpen] = useState(false); // mobile
   const [isCollapsed, setIsCollapsed] = useState(false); // desktop collapse
   const pathname = usePathname();
@@ -222,7 +225,9 @@ export function AppShell({ children }: AppShellProps) {
         className={cn(
           "fixed md:sticky top-0 z-30 h-screen bg-card border-r flex flex-col transition-all duration-300",
           isCollapsed ? "w-[72px]" : "w-[260px]",
-          isSidebarOpen ? "translate-x-0" : "-translate-x-full md:translate-x-0"
+          isSidebarOpen
+            ? "translate-x-0"
+            : "-translate-x-full md:translate-x-0",
         )}
       >
         {/* Brand + Collapse */}
@@ -274,7 +279,7 @@ export function AppShell({ children }: AppShellProps) {
                   isActive
                     ? "bg-secondary font-medium"
                     : "text-muted-foreground hover:bg-secondary/70 hover:text-foreground",
-                  isCollapsed && "justify-center"
+                  isCollapsed && "justify-center",
                 )}
               >
                 <item.icon className="w-5 h-5 shrink-0" />
@@ -288,21 +293,48 @@ export function AppShell({ children }: AppShellProps) {
         <div className="p-4 border-t">
           <div
             className={cn(
-              "flex items-center gap-3",
-              isCollapsed ? "justify-center" : "justify-start"
+              "flex flex-col gap-4",
+              isCollapsed ? "items-center" : "items-stretch",
             )}
           >
-            <div className="w-9 h-9 rounded-full bg-secondary flex items-center justify-center shrink-0">
-              <User className="w-4 h-4" />
+            <div className="flex items-center gap-3">
+              <div className="w-9 h-9 rounded-full bg-secondary flex items-center justify-center shrink-0 overflow-hidden">
+                {session?.user?.image ? (
+                  <img
+                    src={session.user.image}
+                    alt={session.user.name || "User"}
+                    className="w-full h-full object-cover"
+                  />
+                ) : (
+                  <User className="w-4 h-4" />
+                )}
+              </div>
+
+              {!isCollapsed && (
+                <div className="flex-1 text-sm overflow-hidden">
+                  <p className="font-medium truncate">
+                    {session?.user?.name || "Guest"}
+                  </p>
+                  <p className="text-xs text-muted-foreground truncate">
+                    {session?.user?.email || "Not signed in"}
+                  </p>
+                </div>
+              )}
             </div>
 
-            {!isCollapsed && (
-              <div className="flex-1 text-sm overflow-hidden">
-                <p className="font-medium truncate">Arnob Sen</p>
-                <p className="text-xs text-muted-foreground truncate">
-                  arnob@example.com
-                </p>
-              </div>
+            {session && (
+              <Button
+                variant="ghost"
+                size={isCollapsed ? "icon" : "default"}
+                className={cn(
+                  "text-muted-foreground hover:text-destructive hover:bg-destructive/10 transition-colors",
+                  !isCollapsed && "justify-start w-full px-3",
+                )}
+                onClick={() => signOut()}
+              >
+                <LogOut className={isCollapsed ? "w-5 h-5" : "w-4 h-4 mr-2"} />
+                {!isCollapsed && <span>Sign Out</span>}
+              </Button>
             )}
           </div>
         </div>
