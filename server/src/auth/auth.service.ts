@@ -2,6 +2,7 @@ import {
   Injectable,
   UnauthorizedException,
   BadRequestException,
+  Logger,
 } from '@nestjs/common';
 import { JwtService } from '@nestjs/jwt';
 import { InjectModel } from '@nestjs/mongoose';
@@ -13,6 +14,7 @@ import { RegisterDto, LoginDto } from './dto/auth.dto';
 
 @Injectable()
 export class AuthService {
+  private readonly logger = new Logger(AuthService.name);
   constructor(
     @InjectModel(User.name) private userModel: Model<User>,
     private jwtService: JwtService,
@@ -20,7 +22,8 @@ export class AuthService {
   ) {}
 
   async register(registerDto: RegisterDto) {
-    const { email, password, confirmPassword, name } = registerDto;
+    const { email: rawEmail, password, confirmPassword, name } = registerDto;
+    const email = rawEmail.toLowerCase().trim();
 
     if (password !== confirmPassword) {
       throw new BadRequestException('Passwords do not match');
@@ -58,7 +61,8 @@ export class AuthService {
     return { message: 'OTP sent to email' };
   }
 
-  async verifyOtp(email: string, otp: string) {
+  async verifyOtp(emailRaw: string, otp: string) {
+    const email = emailRaw.toLowerCase().trim();
     const user = await this.userModel.findOne({ email });
     if (
       !user ||
@@ -78,7 +82,8 @@ export class AuthService {
   }
 
   async login(loginDto: LoginDto) {
-    const { email, password } = loginDto;
+    const { email: rawEmail, password } = loginDto;
+    const email = rawEmail.toLowerCase().trim();
     const user = await this.userModel.findOne({ email });
 
     if (!user || !user.isVerified) {
@@ -102,7 +107,8 @@ export class AuthService {
     picture: string;
     accessToken: string;
   }) {
-    const { email, firstName, lastName, picture } = googleUser;
+    const email = googleUser.email.toLowerCase().trim();
+    const { firstName, lastName, picture } = googleUser;
     let user = await this.userModel.findOne({ email });
 
     if (!user) {
@@ -111,25 +117,54 @@ export class AuthService {
         name: `${firstName} ${lastName}`,
         avatar: picture,
         isVerified: true,
+        provider: 'google',
       });
+      this.logger.log(`Created new Google user in DB: ${email}`);
+    } else {
+      // Link as Google user if not already or just ensure verified
+      let updated = false;
+      if (!user.isVerified) {
+        user.isVerified = true;
+        updated = true;
+      }
+      if (user.provider !== 'google') {
+        user.provider = 'google';
+        updated = true;
+      }
+      if (updated) {
+        await user.save();
+        this.logger.log(`Updated existing user to Google-verified: ${email}`);
+      }
     }
 
     return this.generateToken(user);
   }
 
-  private generateToken(user: any) {
+  async getMe(userId: string) {
+    const user = await this.userModel.findById(userId);
+    if (!user) throw new UnauthorizedException('User not found');
+
+    return {
+      id: user._id,
+      email: user.email,
+      name: user.name,
+      avatar: user.avatar,
+    };
+  }
+
+  private generateToken(user: User) {
     const payload = {
-      email: (user.email as string) || '',
-      sub: (user._id as string) || '',
-      name: (user.name as string) || '',
+      email: user.email || '',
+      sub: user._id.toString(),
+      name: user.name || '',
     };
     return {
       access_token: this.jwtService.sign(payload),
       user: {
-        id: (user._id as string) || '',
-        email: (user.email as string) || '',
-        name: (user.name as string) || '',
-        avatar: (user.avatar as string) || '',
+        id: user._id.toString(),
+        email: user.email || '',
+        name: user.name || '',
+        avatar: user.avatar || '',
       },
     };
   }

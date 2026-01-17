@@ -3,7 +3,7 @@ import { Document } from 'mongoose';
 
 @Schema({ timestamps: true })
 export class User extends Document {
-  @Prop({ required: true, unique: true })
+  @Prop({ required: true, unique: true, lowercase: true, trim: true })
   email: string;
 
   @Prop()
@@ -17,6 +17,9 @@ export class User extends Document {
 
   @Prop()
   avatar?: string;
+
+  @Prop({ default: 'manual' })
+  provider: string; // 'manual' or 'google'
 
   @Prop({ default: false })
   isVerified: boolean;

@@ -10,7 +10,7 @@ import {
 import { AuthGuard } from '@nestjs/passport';
 import { AuthService } from './auth.service';
 import { RegisterDto, LoginDto, VerifyOtpDto } from './dto/auth.dto';
-import { Response } from 'express';
+import { JwtAuthGuard } from './guards/jwt-auth.guard';
 
 @Controller('auth')
 export class AuthController {
@@ -29,6 +29,12 @@ export class AuthController {
   @Post('login')
   async login(@Body() loginDto: LoginDto) {
     return this.authService.login(loginDto);
+  }
+
+  @Post('google-sync')
+  async googleSync(@Body() googleUser: any) {
+    this.logger.log(`Received google-sync request for: ${googleUser.email}`);
+    return this.authService.validateGoogleUser(googleUser);
   }
 
   @Get('google')
@@ -51,5 +57,11 @@ export class AuthController {
     // In a real app, you might want to use cookies or a more secure way to pass the token
     const frontendUrl = process.env.FRONTEND_URL || 'http://localhost:3000';
     res.redirect(`${frontendUrl}/auth/success?token=${result.access_token}`);
+  }
+
+  @Get('me')
+  @UseGuards(JwtAuthGuard)
+  async getMe(@Req() req: any) {
+    return await this.authService.getMe(req.user.userId as string);
   }
 }
