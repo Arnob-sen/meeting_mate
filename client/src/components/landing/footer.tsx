@@ -2,10 +2,12 @@
 
 export function Footer() {
   return (
-    <footer className="w-full py-6 bg-background border-t border-border mt-16">
-      <p className="text-center text-sm text-muted-foreground">
-        &copy; 2026 Arnob Sen Production
-      </p>
+    <footer className="relative w-full py-6 bg-gradient-to-t from-gray-50 to-white border-t border-gray-200">
+      <div className="max-w-7xl mx-auto px-6 text-center">
+        <p className="text-sm text-gray-600">
+          &copy; {new Date().getFullYear()} Arnob Sen Production
+        </p>
+      </div>
     </footer>
   );
 }
