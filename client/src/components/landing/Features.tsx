@@ -13,7 +13,6 @@ export function Features() {
   const features = [
     {
       title: "Instant Meeting Summaries",
-      description: "Get concise, accurate meeting summaries with key decisions, action items, and takeaways.",
       image: "/Assets/feature-summary.png",
       alt: "Instant Meeting Summaries",
       items: [
@@ -37,7 +36,6 @@ export function Features() {
     },
     {
       title: "Conversational Memory",
-      description: "Ask questions in natural language and find exact moments, making meeting history instantly accessible.",
       image: "/Assets/feature-search.jpg",
       alt: "Conversational Memory",
       items: [
@@ -61,7 +59,6 @@ export function Features() {
     },
     {
       title: "Built for Every Team",
-      description: "Never miss important details with features designed for all team types.",
       image: "/Assets/feature-teams.jpeg",
       alt: "Teams using MeetingMate",
       items: [
@@ -102,7 +99,7 @@ export function Features() {
             isVisible ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-10'
           }`}
         >
-          <h2 className="text-4xl md:text-5xl font-bold mb-6 bg-gradient-to-r from-blue-600 to-purple-600 bg-clip-text text-transparent">
+          <h2 className = "text-3xl md:text-4xl lg:text-5xl font-bold text-gray-900 mb-6">
             Powerful Features
           </h2>
           <p className="text-xl text-gray-600 max-w-3xl mx-auto">

@@ -82,19 +82,6 @@ export function Hero() {
             isVisible ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-8'
           }`}
         >
-          <h2 className="text-2xl md:text-3xl lg:text-4xl font-bold text-gray-900 max-w-3xl mx-auto">
-            Check out the tools that turn
-            <br />
-            <span className="text-blue-600">boring meetings to brilliant</span>
-          </h2>
-          
-          {/* Simple Scroll Indicator */}
-          <div className="mt-12 flex flex-col items-center space-y-3">
-            <div className="w-6 h-10 border-2 border-gray-300 rounded-full flex justify-center">
-              <div className="w-1 h-3 bg-blue-500 rounded-full animate-bounce mt-2" />
-            </div>
-            <p className="text-sm text-gray-500">Explore Features</p>
-          </div>
         </div>
       </div>
 
