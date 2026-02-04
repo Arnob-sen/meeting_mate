@@ -172,6 +172,8 @@ import {
   Search,
   Bell,
   User,
+  CreditCard,
+  Sparkles,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
@@ -189,6 +191,8 @@ export function AppShell({ children }: AppShellProps) {
     { name: "Dashboard", href: "/", icon: LayoutDashboard },
     { name: "Meetings", href: "/meetings", icon: Mic },
     { name: "Chat", href: "/chat", icon: MessageSquare },
+    { name: "Pricing", href: "/pricing", icon: CreditCard },
+    { name: "Subscription", href: "/subscription", icon: Sparkles },
     { name: "Settings", href: "/settings", icon: Settings },
   ];
 
@@ -222,7 +226,9 @@ export function AppShell({ children }: AppShellProps) {
         className={cn(
           "fixed md:sticky top-0 z-30 h-screen bg-card border-r flex flex-col transition-all duration-300",
           isCollapsed ? "w-[72px]" : "w-[260px]",
-          isSidebarOpen ? "translate-x-0" : "-translate-x-full md:translate-x-0"
+          isSidebarOpen
+            ? "translate-x-0"
+            : "-translate-x-full md:translate-x-0",
         )}
       >
         {/* Brand + Collapse */}
@@ -274,7 +280,7 @@ export function AppShell({ children }: AppShellProps) {
                   isActive
                     ? "bg-secondary font-medium"
                     : "text-muted-foreground hover:bg-secondary/70 hover:text-foreground",
-                  isCollapsed && "justify-center"
+                  isCollapsed && "justify-center",
                 )}
               >
                 <item.icon className="w-5 h-5 shrink-0" />
@@ -289,7 +295,7 @@ export function AppShell({ children }: AppShellProps) {
           <div
             className={cn(
               "flex items-center gap-3",
-              isCollapsed ? "justify-center" : "justify-start"
+              isCollapsed ? "justify-center" : "justify-start",
             )}
           >
             <div className="w-9 h-9 rounded-full bg-secondary flex items-center justify-center shrink-0">

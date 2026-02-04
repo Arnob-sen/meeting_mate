@@ -32,6 +32,7 @@
     "@nestjs/mongoose": "^11.0.3",
     "@nestjs/platform-express": "^11.0.1",
     "@nestjs/swagger": "^11.2.3",
+    "@paddle/paddle-node-sdk": "^3.5.0",
     "@scalar/nestjs-api-reference": "^1.0.9",
     "bullmq": "^5.66.5",
     "class-transformer": "^0.5.1",
