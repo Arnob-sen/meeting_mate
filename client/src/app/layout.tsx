@@ -20,21 +20,16 @@ export const metadata: Metadata = {
   description: "Record, transcribe, and analyze client meetings",
 };
 
-export default function RootLayout({
-  children,
-}: Readonly<{
-  children: React.ReactNode;
-}>) {
+export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
     <html lang="en">
-      <body
-        className={`${geistSans.variable} ${geistMono.variable} antialiased`}
-      >
+      <body className={`${geistSans.variable} ${geistMono.variable} antialiased`}>
         <QueryProvider>
-          <AppShell>{children}</AppShell>
+          {children}
           <Toaster position="top-right" richColors />
         </QueryProvider>
       </body>
     </html>
   );
 }
+
